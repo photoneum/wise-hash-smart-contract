@@ -1,57 +1,95 @@
 import { Contract } from '@algorandfoundation/tealscript';
 
+// Define contract state type
+type ContractState = 'new' | 'started' | 'complete';
+
 export class WiseHashContracts extends Contract {
+  // Global state variables
+  supplyChainId = GlobalStateKey<string>();
+  ownerAddress = GlobalStateKey<Address>();
+  location = GlobalStateKey<string>();
+  timestamp = GlobalStateKey<uint64>();
+  contractState = GlobalStateKey<ContractState>();
+
   /**
-   * Calculates the sum of two numbers
-   *
-   * @param a
-   * @param b
-   * @returns The sum of a and b
+   * Begins a new supply chain
+   * @param supplyChainId - Unique identifier for the supply chain
+   * @param location - Current location of the goods
    */
-  private getSum(a: uint64, b: uint64): uint64 {
-    return a + b;
+  beginSupplyChain(supplyChainId: string, location: string): void {
+    // Verify contract is not already in use
+    assert(!this.contractState.exists || this.contractState.value === 'new', 'Contract already in use');
+
+    // Store initial supply chain details
+    this.supplyChainId.value = supplyChainId;
+    this.ownerAddress.value = this.txn.sender;
+    this.location.value = location;
+    this.timestamp.value = this.txn.timestamp;
+    this.contractState.value = 'started';
   }
 
   /**
-   * Calculates the difference between two numbers
-   *
-   * @param a
-   * @param b
-   * @returns The difference between a and b.
+   * Exchanges the supply chain ownership to a new address
+   * @param supplyChainId - Supply chain identifier to verify
+   * @param receiverAddress - New owner address
+   * @param location - Current location of the goods
    */
-  private getDifference(a: uint64, b: uint64): uint64 {
-    return a >= b ? a - b : b - a;
+  exchangeSupplyChain(supplyChainId: string, receiverAddress: Address, location: string): void {
+    // Verify sender is current owner
+    assert(this.ownerAddress.value === this.txn.sender, 'Only current owner can exchange');
+
+    // Verify supply chain ID matches
+    assert(this.supplyChainId.value === supplyChainId, 'Supply chain ID mismatch');
+
+    // Verify contract is in started state
+    assert(this.contractState.value === 'started', 'Supply chain not in valid state');
+
+    // Update ownership and details
+    this.ownerAddress.value = receiverAddress;
+    this.location.value = location;
+    this.timestamp.value = this.txn.timestamp;
   }
 
   /**
-   * A method that takes two numbers and does either addition or subtraction
-   *
-   * @param a The first uint64
-   * @param b The second uint64
-   * @param operation The operation to perform. Can be either 'sum' or 'difference'
-   *
-   * @returns The result of the operation
+   * Completes the supply chain process
+   * @param supplyChainId - Supply chain identifier to verify
+   * @param receiverAddress - Final receiver address
+   * @param location - Final location of the goods
    */
-  doMath(a: uint64, b: uint64, operation: string): uint64 {
-    let result: uint64;
+  completeSupplyChain(supplyChainId: string, receiverAddress: Address, location: string): void {
+    // Verify sender is current owner
+    assert(this.ownerAddress.value === this.txn.sender, 'Only current owner can complete');
 
-    if (operation === 'sum') {
-      result = this.getSum(a, b);
-    } else if (operation === 'difference') {
-      result = this.getDifference(a, b);
-    } else throw Error('Invalid operation');
+    // Verify supply chain ID matches
+    assert(this.supplyChainId.value === supplyChainId, 'Supply chain ID mismatch');
 
-    return result;
+    // Verify contract is in started state
+    assert(this.contractState.value === 'started', 'Supply chain not in valid state');
+
+    // Update final details
+    this.ownerAddress.value = receiverAddress;
+    this.location.value = location;
+    this.timestamp.value = this.txn.timestamp;
+    this.contractState.value = 'complete';
   }
 
   /**
-   * A demonstration method used in the AlgoKit fullstack template.
-   * Greets the user by name.
-   *
-   * @param name The name of the user to greet.
-   * @returns A greeting message to the user.
+   * Gets the current state of the supply chain
+   * @returns Object containing current supply chain details
    */
-  hello(name: string): string {
-    return 'Hello, ' + name;
+  getSupplyChainState(): {
+    supplyChainId: string;
+    ownerAddress: Address;
+    location: string;
+    timestamp: uint64;
+    state: ContractState;
+  } {
+    return {
+      supplyChainId: this.supplyChainId.value,
+      ownerAddress: this.ownerAddress.value,
+      location: this.location.value,
+      timestamp: this.timestamp.value,
+      state: this.contractState.value,
+    };
   }
 }
